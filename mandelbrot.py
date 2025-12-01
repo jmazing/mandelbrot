@@ -2,6 +2,9 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+from multiprocessing import Pool, cpu_count
+
+import os
 
 # View Settings
 WIDTH_PX = 1600
@@ -13,27 +16,37 @@ HEIGHT_INCHES = HEIGHT_PX / DPI
 
 # Mandelbrot settings
 BOUNDARY_THRESHOLD = 0.9
-ITERATIONS = 80
+ITERATIONS = 100
 ZOOM_FACTOR = 1.02
-ZOOM_ITERATIONS = 5
+ZOOM_ITERATIONS = 10 # Around .25 GB
+
+X_CENTER = -0.743643887037158704752191506114774
+Y_CENTER =  0.131825904205311970493132056385139
 
 
-def in_mandelbrot_set(x_pt, y_pt, ITERATIONS) -> int:
+def in_mandelbrot(x_pt, y_pt, ITERATIONS) -> int:
+    zx = 0.0
+    zy = 0.0
     i = 0
-    z_prev = 0
+    
     while i < ITERATIONS:
-        z_n = z_prev ** 2 + complex(x_pt, y_pt)
-        
-        if abs(z_n) > 2:
+        # computer z^2
+        zx2 = zx*zx - zy*zy
+        zy2 = 2*zx*zy
+
+        # add constant C
+        zx = zx2 + x_pt
+        zy = zy2 + y_pt
+
+        if zx*zx + zy*zy > 4.0:
             return i
         
-        z_prev = z_n
         i += 1
     
     return ITERATIONS
 
 
-def find_boundary_pixels(img, threshold) -> tuple:
+# def find_boundary_pixels(img, threshold) -> tuple:
     max_iter_count = -1
     j_pixel = -1
     i_pixel = -1
@@ -48,8 +61,25 @@ def find_boundary_pixels(img, threshold) -> tuple:
     
     return j_pixel, i_pixel
 
+def compute_row(j, x_min, x_range, y_min, y_range, height_px, width_px, iterations):
+    # allocate an array for this row
+    row_data = []
+
+    dx = x_range / width_px
+    dy = y_range / height_px
+    for i in range(width_px):
+        x_pt = x_min + i * dx
+        y_pt = y_min + j * dy
+        iter_count = in_mandelbrot(x_pt, y_pt, iterations)
+        row_data.append(iter_count)
+
+    return (j, row_data)
+
 
 if __name__ == '__main__':
+    directory_path = "/home/julius/work/mandelbrot_set/images"
+    os.makedirs(directory_path, exist_ok=True)
+
     # initial view settings
     x_min = -2.5
     x_max = 1
@@ -63,54 +93,33 @@ if __name__ == '__main__':
     plt.axis("off")
     img = np.zeros((HEIGHT_PX, WIDTH_PX))
 
-    for z in range(0, ZOOM_ITERATIONS - 1):
-        
-        # fill in image with iterations
-        # new function here
-        for i in range(0, WIDTH_PX):
-            x_pt = x_min +  i *  (x_range / WIDTH_PX)
-            for j in range(0, HEIGHT_PX):
-                y_pt = y_min + j * (y_range / HEIGHT_PX)
+    with Pool(processes=cpu_count()) as pool:
+        for z in range(0, ZOOM_ITERATIONS):
+            tasks = []
+            for j in range(HEIGHT_PX):
+                tasks.append((j, x_min, x_range, y_min, y_range, HEIGHT_PX, WIDTH_PX, ITERATIONS))
 
-                iter_count = in_mandelbrot_set(x_pt, y_pt, ITERATIONS)
-                img[j][i] = iter_count
+            results = pool.starmap(compute_row, tasks)
+            
+            for (j, row_data) in results:
+                img[j, :] = row_data
 
+            plt.imshow(img, extent=[x_min, x_max, y_min, y_max], origin='lower', aspect='auto', cmap='turbo')
+            
+            img_name = f"{directory_path}/mandebrot_{z}.png"
+            plt.savefig(img_name)
 
-        plt.imshow(img, extent=[x_min, x_max, y_min, y_max], origin='lower', aspect='auto', cmap='inferno')
-        plt.draw()
-        plt.pause(0.5)
+            x_range_new = x_range / ZOOM_FACTOR
+            y_range_new = y_range / ZOOM_FACTOR
+            x_half = x_range_new / 2
+            y_half = y_range_new / 2
 
-        # Find first boundary to zoom in on
-        threshold = BOUNDARY_THRESHOLD * ITERATIONS
-        j_zoom, i_zoom = find_boundary_pixels(img, threshold)
-        
-        # new function here
-        x_zoom = x_min + i_zoom * (x_range / WIDTH_PX)
-        y_zoom = y_min + j_zoom * (y_range / HEIGHT_PX)
-        x_range_new = x_range / ZOOM_FACTOR
-        y_range_new = y_range / ZOOM_FACTOR
-        x_half = x_range_new / 2
-        y_half = y_range_new / 2
+            x_min = X_CENTER - x_half
+            x_max = X_CENTER + x_half
+            y_min = Y_CENTER - y_half
+            y_max = Y_CENTER + y_half
 
-        x_min = x_zoom - x_half
-        x_max = x_zoom + x_half
-        y_min = y_zoom - y_half
-        y_max = y_zoom + y_half
+            x_range = abs(x_max - x_min)
+            y_range = abs(y_max - y_min)
 
-        x_range = abs(x_max - x_min)
-        y_range = abs(y_max - y_min)
-
-        ITERATIONS *= 1.02
-
-
-    # fill in image with iterations
-    for i in range(0, WIDTH_PX):
-        x_pt = x_min +  i *  (x_range / WIDTH_PX)
-        for j in range(0, HEIGHT_PX):
-            y_pt = y_min + j * (y_range/HEIGHT_PX)
-
-            iter_count = in_mandelbrot_set(x_pt, y_pt, ITERATIONS)
-            img[j][i] = iter_count
-
-    plt.imshow(img, extent=[x_min, x_max, y_min, y_max], origin='lower', aspect='auto', cmap='inferno')
-    plt.show()
+            ITERATIONS *= 1.02
