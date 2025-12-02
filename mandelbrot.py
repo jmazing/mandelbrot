@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+from numba import njit
+import math
+
 import matplotlib.pyplot as plt
 import numpy as np
 from multiprocessing import Pool, cpu_count
@@ -23,13 +26,13 @@ ZOOM_ITERATIONS = 10 # Around .25 GB
 X_CENTER = -0.743643887037158704752191506114774
 Y_CENTER =  0.131825904205311970493132056385139
 
-
-def in_mandelbrot(x_pt, y_pt, ITERATIONS) -> int:
+@njit
+def in_mandelbrot(x_pt, y_pt, max_iters) -> float:
     zx = 0.0
     zy = 0.0
     i = 0
     
-    while i < ITERATIONS:
+    while i < max_iters:
         # computer z^2
         zx2 = zx*zx - zy*zy
         zy2 = 2*zx*zy
@@ -38,15 +41,19 @@ def in_mandelbrot(x_pt, y_pt, ITERATIONS) -> int:
         zx = zx2 + x_pt
         zy = zy2 + y_pt
 
-        if zx*zx + zy*zy > 4.0:
-            return i
+        r2 = zx*zx + zy*zy
+        if r2 > 4.0:
+            r = math.sqrt(r2)
+            nu = i + 1.0 - math.log(math.log(r)) / math.log(2.0)
+            return nu
         
         i += 1
     
-    return ITERATIONS
+    return float(max_iters)
 
 
-# def find_boundary_pixels(img, threshold) -> tuple:
+"""
+def find_boundary_pixels(img, threshold) -> tuple:
     max_iter_count = -1
     j_pixel = -1
     i_pixel = -1
@@ -60,6 +67,8 @@ def in_mandelbrot(x_pt, y_pt, ITERATIONS) -> int:
                     i_pixel = i
     
     return j_pixel, i_pixel
+"""
+
 
 def compute_row(j, x_min, x_range, y_min, y_range, height_px, width_px, iterations):
     # allocate an array for this row
