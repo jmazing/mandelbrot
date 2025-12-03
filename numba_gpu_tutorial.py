@@ -16,6 +16,14 @@ def fill_array(arr):
     if i < arr.size:
         arr[i] = i * 2
 
+@cuda.jit
+def fill_coords(out):
+    x, y = cuda.grid(2)   # get the 2D global thread index
+
+    if x < out.shape[1] and y < out.shape[0]:
+        out[y, x] = x + y * 100
+
+
 print(cuda.gpus)
 print("============================================")
 print_indices[1, 10]()  # 1 block, 10 threads
@@ -32,3 +40,8 @@ fill_array[blocks, threads](d_arr)
 result = d_arr.copy_to_host()
 
 print(result)
+
+
+H, W = 4, 6
+out = np.zeros((H, W), dtype=np.int32)
+

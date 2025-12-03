@@ -5,7 +5,6 @@ import math
 
 import matplotlib.pyplot as plt
 import numpy as np
-from multiprocessing import Pool, cpu_count
 
 import os
 
@@ -35,7 +34,7 @@ def in_mandelbrot(x_pt, y_pt, max_iters) -> float:
     zy = 0.0
 
     for i in range(max_iters):
-        # computer z^2
+        # compute z^2
         zx2 = zx*zx - zy*zy
         zy2 = 2*zx*zy
 
@@ -68,7 +67,7 @@ def render_frame(x_min, x_max, y_min, y_max, height_px, width_px, iterations) ->
 
 
 if __name__ == '__main__':
-    directory_path = "/home/julius/work/mandelbrot_set/images"
+    directory_path = f"{os.getcwd()}/images"
     os.makedirs(directory_path, exist_ok=True)
 
     # initial view settings
